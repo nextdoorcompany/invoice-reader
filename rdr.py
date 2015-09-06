@@ -18,30 +18,74 @@ def get_invoices(filename):
 	
 	invoices = []
 	for row in range(start_row, sheet.get_highest_row() + 1):
-		invoices.append(Invoice('1', '2', '3', '4', '5'))
+		if sheet.cell(row=row, column=xl_map.name).value == company:
+			date = sheet.cell(row=row, column=xl_map.date).value
+			date_parts = [part.lstrip('0') for part in date.split('/')]
+			date = '/'.join(date_parts)
+			print(date)	
+			idn = sheet.cell(row=row, column=xl_map.id).value
+			po = sheet.cell(row=row, column=xl_map.po).value
+			job = sheet.cell(row=row, column=xl_map.job).value
+			amount = sheet.cell(row=row, column=xl_map.amount).value
+			amount = int(amount * 100)
+			invoices.append(Invoice(date, idn, po, job, amount))
 
 	return(invoices)
 
 @pytest.fixture
 def filename(request):
 	fname = 'xtest.xlsx'
-	wb = openpyxl.Workbook()
-	sheet = wb.get_active_sheet()
-	sheet.title = sheet_title
-	sheet.cell(row=start_row, column=xl_map.date).value = '09/06/2015'
-	sheet.cell(row=start_row, column=xl_map.id).value = 12345
-	sheet.cell(row=start_row, column=xl_map.po).value = 'FL1007-010'
-	sheet.cell(row=start_row, column=xl_map.name).value = company
-	sheet.cell(row=start_row, column=xl_map.job).value = '1007.R57'
-	sheet.cell(row=start_row, column=xl_map.amount).value = 3400.75
-	wb.save(fname)
 
 	def fin():
 		os.remove(fname)
 	request.addfinalizer(fin)
 	return fname
 
-def test_rdr(filename):
+def build_one_row_ss(filename, date, id, po, name, job, amount):
+	wb = openpyxl.Workbook()
+	sheet = wb.get_active_sheet()
+	sheet.title = sheet_title
+	sheet.cell(row=start_row, column=xl_map.date).value = date
+	sheet.cell(row=start_row, column=xl_map.id).value = id
+	sheet.cell(row=start_row, column=xl_map.po).value = po
+	sheet.cell(row=start_row, column=xl_map.name).value = name
+	sheet.cell(row=start_row, column=xl_map.job).value = job
+	sheet.cell(row=start_row, column=xl_map.amount).value = amount
+
+	wb.save(filename)
+
+def test_rdr_basic(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 456.22)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
+	assert result[0].date == '9/6/2015'
+	assert result[0].id == 12345
+	assert result[0].po == 'FL1027-010'
+	assert result[0].amount == 45622
+
+def test_rdr_not_ndd(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', 'foo', '1027.R37', 456.22)
+	result = get_invoices(filename)
+
+	assert len(result) == 0
+
+def test_rdr_zero_cents(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 456.00)
+	result = get_invoices(filename)
+
+	assert len(result) == 1
+	assert result[0].date == '9/6/2015'
+	assert result[0].id == 12345
+	assert result[0].po == 'FL1027-010'
+	assert result[0].amount == 45600	
+
+def test_rdr_over_thousand(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 11456.23)
+	result = get_invoices(filename)
+
+	assert len(result) == 1
+	assert result[0].date == '9/6/2015'
+	assert result[0].id == 12345
+	assert result[0].po == 'FL1027-010'
+	assert result[0].amount == 1145623	
