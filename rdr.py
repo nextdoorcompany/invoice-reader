@@ -3,6 +3,7 @@ import sys
 import collections
 import pytest
 import os
+import datetime
 
 Invoice = collections.namedtuple('Invoice', ['date', 'id', 'po', 'job', 'amount'])
 Col_Map = collections.namedtuple('Col_Map', ['date', 'id', 'po', 'name', 'job', 'amount'])
@@ -20,7 +21,7 @@ def get_invoices(filename):
 	invoices = []
 	for row in range(start_row, sheet.get_highest_row() + 1):
 		if sheet.cell(row=row, column=xl_map.name).value == company:
-			date = sheet.cell(row=row, column=xl_map.date).value
+			date = sheet.cell(row=row, column=xl_map.date).value.strftime('%m/%d/%Y')
 			date_parts = [part.lstrip('0') for part in date.split('/')]
 			date = '/'.join(date_parts)
 			idn = sheet.cell(row=row, column=xl_map.id).value
@@ -42,12 +43,12 @@ def filename(request):
 	request.addfinalizer(fin)
 	return fname
 
-def build_one_row_ss(filename, date, id, po, name, job, amount):
+def build_one_row_ss(filename, date, idn, po, name, job, amount):
 	wb = openpyxl.Workbook()
 	sheet = wb.get_active_sheet()
 	sheet.title = sheet_title
 	sheet.cell(row=start_row, column=xl_map.date).value = date
-	sheet.cell(row=start_row, column=xl_map.id).value = id
+	sheet.cell(row=start_row, column=xl_map.id).value = idn
 	sheet.cell(row=start_row, column=xl_map.po).value = po
 	sheet.cell(row=start_row, column=xl_map.name).value = name
 	sheet.cell(row=start_row, column=xl_map.job).value = job
@@ -56,7 +57,7 @@ def build_one_row_ss(filename, date, id, po, name, job, amount):
 	wb.save(filename)
 
 def test_rdr_basic(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 456.22)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', company, '1027.R37', 456.22)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
@@ -67,13 +68,13 @@ def test_rdr_basic(filename):
 	assert result[0].amount == 45622
 
 def test_rdr_not_ndd(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', 'foo', '1027.R37', 456.22)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', 'foo', '1027.R37', 456.22)
 	result = get_invoices(filename)
 
 	assert len(result) == 0
 
 def test_rdr_zero_cents(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 456.00)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', company, '1027.R37', 456.00)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
@@ -84,7 +85,7 @@ def test_rdr_zero_cents(filename):
 	assert result[0].amount == 45600	
 
 def test_rdr_over_thousand(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37', 11456.23)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', company, '1027.R37', 11456.23)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
@@ -95,7 +96,7 @@ def test_rdr_over_thousand(filename):
 	assert result[0].amount == 1145623	
 
 def test_rdr_two_jobs(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37' + job_delim + '1027.R38', 11456.23)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', company, '1027.R37' + job_delim + '1027.R38', 11456.23)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
@@ -106,7 +107,7 @@ def test_rdr_two_jobs(filename):
 	assert result[0].amount == 1145623	
 
 def test_rdr_two_jobs_extra_spaces(filename):
-	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37' + job_delim + ' 1027.R38', 11456.23)
+	build_one_row_ss(filename, datetime.datetime(2015, 9, 6), 12345, 'FL1027-010', company, '1027.R37' + job_delim + ' 1027.R38', 11456.23)
 	result = get_invoices(filename)
 
 	assert len(result) == 1
