@@ -10,6 +10,7 @@ xl_map = Col_Map(3, 4, 5, 6, 9, 10)
 sheet_title = 'Sheet1'
 start_row = 3
 company = 'Next Door Distribution Company'
+job_delim = ','
 
 def get_invoices(filename):
 	print('opening:  %s' % filename)
@@ -22,10 +23,10 @@ def get_invoices(filename):
 			date = sheet.cell(row=row, column=xl_map.date).value
 			date_parts = [part.lstrip('0') for part in date.split('/')]
 			date = '/'.join(date_parts)
-			print(date)	
 			idn = sheet.cell(row=row, column=xl_map.id).value
 			po = sheet.cell(row=row, column=xl_map.po).value
-			job = sheet.cell(row=row, column=xl_map.job).value
+			jobs = sheet.cell(row=row, column=xl_map.job).value.split(job_delim)
+			job = [j.strip(' ') for j in jobs]
 			amount = sheet.cell(row=row, column=xl_map.amount).value
 			amount = int(amount * 100)
 			invoices.append(Invoice(date, idn, po, job, amount))
@@ -62,6 +63,7 @@ def test_rdr_basic(filename):
 	assert result[0].date == '9/6/2015'
 	assert result[0].id == 12345
 	assert result[0].po == 'FL1027-010'
+	assert result[0].job == ['1027.R37']
 	assert result[0].amount == 45622
 
 def test_rdr_not_ndd(filename):
@@ -78,6 +80,7 @@ def test_rdr_zero_cents(filename):
 	assert result[0].date == '9/6/2015'
 	assert result[0].id == 12345
 	assert result[0].po == 'FL1027-010'
+	assert result[0].job == ['1027.R37']
 	assert result[0].amount == 45600	
 
 def test_rdr_over_thousand(filename):
@@ -88,4 +91,28 @@ def test_rdr_over_thousand(filename):
 	assert result[0].date == '9/6/2015'
 	assert result[0].id == 12345
 	assert result[0].po == 'FL1027-010'
+	assert result[0].job == ['1027.R37']
 	assert result[0].amount == 1145623	
+
+def test_rdr_two_jobs(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37' + job_delim + '1027.R38', 11456.23)
+	result = get_invoices(filename)
+
+	assert len(result) == 1
+	assert result[0].date == '9/6/2015'
+	assert result[0].id == 12345
+	assert result[0].po == 'FL1027-010'
+	assert result[0].job == ['1027.R37', '1027.R38']
+	assert result[0].amount == 1145623	
+
+def test_rdr_two_jobs_extra_spaces(filename):
+	build_one_row_ss(filename, '09/06/2015', 12345, 'FL1027-010', company, '1027.R37' + job_delim + ' 1027.R38', 11456.23)
+	result = get_invoices(filename)
+
+	assert len(result) == 1
+	assert result[0].date == '9/6/2015'
+	assert result[0].id == 12345
+	assert result[0].po == 'FL1027-010'
+	assert result[0].job == ['1027.R37', '1027.R38']
+	assert result[0].amount == 1145623	
+
